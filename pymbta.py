@@ -10,8 +10,12 @@ class MBTAClient():
 
 	#Helpers
 
+	def check_for_method(obj, method):
+		f = getattr(obj, method, None)
+		return callable(f)
+
 	def format_datetime(_datetime):
-		if isinstance(_datetime, datetime.datetime):
+		if self.check_for_method(_datetime, "timetuple"):
 			_datetime = time.mktime(_datetime.timetuple())
 		return _datetime
 
@@ -86,9 +90,11 @@ class MBTAClient():
 		return self.alert_by_id(alert_id)
 
 	#Joins
-	def closest_stop(self, address, _type='Subway'):
-		address, lat_lon = self.geolocator.geocode(address)
-		for stop in self.stops_by_location(lat_lon)['stop']:
+	
+	def closest_stop(self, loc, _type='Subway'):
+		if self.check_for_method(loc, 'strip'):
+			_, loc = self.geolocator.geocode(address)
+		for stop in self.stops_by_location(loc)['stop']:
 			routes = self.routes_by_stop(stop['stop_id'])
 			if _type in self.get_types(routes):
 				return stop
