@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html ng-app='MBTAApp'>
+	<head>
+		<script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+		<script src="//ajax.googleapis.com/ajax/libs/angularjs/1.3.0-beta.10/angular.min.js"></script>
+		<script>
+			var MBTAApp = angular.module('MBTAApp',[]);
+			MBTAApp.controller('MBTACtrl', function ($scope) {
+				$scope.trains = {};
+				$scope.args = {offset: 0, direction: null, line: null};
+				$scope.go = function () {
+					navigator.geolocation.getCurrentPosition(showPosition);
+				}
+				function showPosition(position) {
+					args = {lat: position.coords.latitude, lon: position.coords.longitude}
+					angular.extend(args, $scope.args)
+					args.dt = Math.round(new Date() / 1000) + 60*60*args.offset
+				    $.post( "/api/next_trains", args, function( data ) {
+					  $scope.trains = data;
+					  $scope.$apply();
+					  console.log($scope.trains);
+					});
+				}
+			});
+		</script>
+	</head>
+	<body ng-controller='MBTACtrl'>
+		<div>
+			Offset (Hours): <input type="number" ng-model='args.offset'><br>
+			Direction: <input type="text" ng-model='args.direction'><br>
+			Line: <input type="text" ng-model='args.line'><br>
+			<button type='button' ng-click='go()'>Go!</button>
+		</div>
+		<br />
+		<h4>Next Train:</h4>
+		<div>
+			{{trains.route_name}}<br>
+			{{trains.stop_name}}
+			<div ng-repeat='train in trains.trains'>
+				({{train.direction_name}}) {{train.trip_name}}
+			</div>
+		</div>
+	</body>
+</html>
