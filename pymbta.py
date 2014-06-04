@@ -34,21 +34,29 @@ class MBTAClient():
 			self.cache[url] = requests.get(url, headers=self.default_headers()).json()
 		return self.cache[url]
 
-	def get_types_from_stop(self, stop):
-		return set([x['mode_name'] for x in stop['mode']])
+	def get_types_from_routes(self, routes):
+		return set([x['mode_name'] for x in routes])
 
-	def get_route_from_mode(self, modes, mode_name):
+	def get_routes_from_mode(self, modes, mode_name):
+		routes = []
 		for mode in modes:
 			if mode['mode_name'] == mode_name:
-				return mode
+				routes.extend(mode['route'])
+		return routes
+
+	def format_line(self, line):
+		return line.lower().replace('line','').strip()
 
 	def get_dirs_from_schedule(self, schedule, _type):
-		routes = self.get_route_from_mode(schedule['mode'], _type)['route']
+		routes = self.get_routes_from_mode(schedule['mode'], _type)
 		return set([int(x['direction'][0]['direction_id']) for x in routes])
 	
 	def get_dir_strings_from_schedule(self, schedule, _type):
-		routes = self.get_route_from_mode(schedule['mode'], _type)['route']
+		routes = self.get_routes_from_mode(schedule['mode'], _type)
 		return set([x['direction'][0]['direction_name'].lower() for x in routes])
+
+	def get_lines_from_routes(self, routes):
+		return set([self.format_line(x['route'][0]['route_name']) for x in routes])
 
 	def get_latlon(self, address):
 		address = address.strip().lower()
@@ -56,6 +64,18 @@ class MBTAClient():
 			 _, latlon = self.geolocator.geocode(address)
 			 self.cache[address] = latlon
 		return self.cache[address]
+
+	def validate_line(self, line, routes):
+		return line.lower() in self.get_lines_from_routes(routes)
+
+	def validate_direction(self, direction, schedule, _type):
+		if direction.isdigit():
+			in_stop_name = False
+			in_direction = int(direction) in self.get_dirs_from_schedule(schedule, _type)
+		else:
+			in_stop_name = direction.lower() in schedule['stop_name'].lower()
+			in_direction = True in [(direction.lower() in x) for x in self.get_dir_strings_from_schedule(schedule, _type)]
+		return in_stop_name or in_direction
 
 	#Services
 
@@ -111,30 +131,57 @@ class MBTAClient():
 
 	#Joins
 
-	def closest_stop(self, loc, _type='Subway', direction=None, _datetime=None):
+	def closest_stop(self, loc, _type='Subway', direction=None, _datetime=None, line=None):
 		if self.check_for_method(loc, 'strip'):
 			loc = self.get_latlon(loc)
 		for stop in self.stops_by_location(loc)['stop']:
-			routes = self.routes_by_stop(stop['stop_id'])
-			if _type in self.get_types_from_stop(routes):
+			routes = self.routes_by_stop(stop['stop_id'])['mode']
+			if _type in self.get_types_from_routes(routes):
+				if line:
+					if not self.validate_line(line, routes):
+						continue
 				if direction:
 					schedule = self.schedule_by_stop(stop['stop_id'], _datetime=_datetime)
-					if direction.isdigit():
-						in_stop_name = False
-						in_direction = int(direction) in self.get_dirs_from_schedule(schedule, _type)
-					else:
-						in_stop_name = direction.lower() in stop['stop_name'].lower()
-						in_direction = True in [(direction.lower() in x) for x in self.get_dir_strings_from_schedule(schedule, _type)]
-					if not in_stop_name and not in_direction:
+					if not self.validate_direction(direction, schedule, _type):
 						continue
 				return stop
 
-	def nearby_schedule(self, loc, _datetime=None, direction=None):
-		stop = self.closest_stop(loc, direction=direction, _datetime=_datetime)
+	def nearby_schedule(self, loc, _datetime=None, direction=None, line=None):
+		stop = self.closest_stop(loc, direction=direction, _datetime=_datetime, line=line)
 		return self.schedule_by_stop(stop['stop_id'], _datetime=_datetime) if stop else None
 
-	def next_train(self, loc, _datetime=None, direction=None):
-		schedule = self.nearby_schedule(loc, direction=direction, _datetime=_datetime)['mode']
-		return schedule[0]['route'][0]['direction'][0]['trip'][0]
+	def next_route(self, loc, _datetime=None, direction=None, line=None):
+		schedule = self.nearby_schedule(loc, direction=direction, _datetime=_datetime, line=line)
+		if schedule:
+			routes = self.get_routes_from_mode(schedule['mode'], 'Subway')
+			for route in routes:
+				if line:
+					if not self.validate_line(line, [{'route': [route]}]):
+						continue
+				if direction:
+					if not self.validate_direction(direction, schedule, 'Subway'):
+						continue
+				info = {'stop_id': schedule['stop_id'], 'stop_name': schedule['stop_name']}
+				info.update(route)
+				return info
 
+	def next_trains(self, loc, _datetime=None, direction=None, line=None):
+		route = self.next_route(loc, direction=direction, _datetime=_datetime, line=line)
+		if route:
+			info = {'stop_id': route['stop_id'], 'stop_name': route['stop_name'], 'route_id': route['route_id'], 'route_name': route['route_name']}
+			trains = []
+			for direction in route['direction']:
+				train = {'direction_id': direction['direction_id'], 'direction_name': direction['direction_name']}
+				train.update(direction['trip'][0])
+				trains.append(train)
+			info['trains'] = trains
+			return info
 
+	def next_train(self, loc, _datetime=None, direction=None, line=None):
+		trains = self.next_trains(loc, direction=direction, _datetime=_datetime, line=line)
+		if trains:
+			earliest = trains['trains'][0]
+			for train in trains['trains']:
+				if int(train['sch_arr_dt']) < int(earliest['sch_arr_dt']):
+					earliest = train
+			return earliest
