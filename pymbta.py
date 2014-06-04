@@ -17,7 +17,8 @@ class MBTAClient():
 	def format_datetime(self, _datetime):
 		if self.check_for_method(_datetime, "timetuple"):
 			_datetime = time.mktime(_datetime.timetuple())
-		return int(_datetime)
+		if _datetime:
+			return int(_datetime)
 
 	def default_query_params(self):
 		return {'api_key': self.api_key}
