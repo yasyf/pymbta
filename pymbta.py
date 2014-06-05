@@ -1,4 +1,5 @@
 import requests, time, datetime
+from mongocache import MongoCache, MongoTrips
 from geopy.geocoders import GoogleV3
 
 class MBTAClient():
@@ -6,7 +7,8 @@ class MBTAClient():
 		self.api_key = api_key
 		self.endpoint = endpoint
 		self.geolocator = GoogleV3()
-		self.cache = {}
+		self.cache = MongoCache()
+		self.trips = MongoTrips()
 
 	#Helpers
 
@@ -183,6 +185,8 @@ class MBTAClient():
 		if routes:
 			for route in routes:
 				info = {'stop_id': route['stop_id'], 'stop_name': route['stop_name'], 'route_id': route['route_id'], 'route_name': route['route_name']}
+				if len(route['direction']) > 0:
+					info['headsign'] = self.trips[route['direction'][0]['trip'][0]['trip_id']]['trip_headsign']
 				trains = []
 				for direction in route['direction']:
 					train = {'direction_id': direction['direction_id'], 'direction_name': direction['direction_name']}

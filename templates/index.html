@@ -5,79 +5,14 @@
 	    <meta http-equiv="X-UA-Compatible" content="IE=edge">
 	    <meta name="viewport" content="width=device-width, initial-scale=1">
 		<script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+		<script src="//cdnjs.cloudflare.com/ajax/libs/lodash.js/2.4.1/lodash.min.js"></script>
 		<script src="//cdnjs.cloudflare.com/ajax/libs/moment.js/2.6.0/moment.min.js"></script>
 		<link href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css" rel="stylesheet">
 		<script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
 		<script src="//ajax.googleapis.com/ajax/libs/angularjs/1.3.0-beta.10/angular.min.js"></script>
 		<script src="//ajax.googleapis.com/ajax/libs/angularjs/1.3.0-beta.10/angular-cookies.min.js"></script>
-		<script>
-			var MBTAApp = angular.module('MBTAApp',['ngCookies']);
-			MBTAApp.controller('MBTACtrl', function ($scope, $cookieStore, $sce) {
-				$scope.trains = $cookieStore.get('trains') || {};
-				$scope.hidden = true;
-				$scope.updated = $cookieStore.get('updated') || null;
-				$scope.stop = $cookieStore.get('stop') || {};
-
-				$scope.args = {};
-				$scope.args.offset = $cookieStore.get('offset') || 0;
-				$scope.args.direction = $cookieStore.get('direction') || null;
-				$scope.args.line = $cookieStore.get('line') || null;
-
-				$scope.go = function () {
-					navigator.geolocation.getCurrentPosition(function (position) {
-						args = {lat: position.coords.latitude, lon: position.coords.longitude};
-						angular.extend(args, $scope.args);
-						args.dt = Math.round(new Date() / 1000) + 60*60*args.offset;
-						$.each($scope.args, function (k, v) {
-							$cookieStore.put(k, v);
-						});
-						showPosition(args);
-						getStop(args);
-					});
-				}
-				$scope.getName = function (stop) {
-					return stop.parent_station_name ? stop.parent_station_name : stop.stop_name;
-				}
-				$scope.getDistance = function (stop) {
-					kilometers = (stop.distance*1.60934);
-					if (kilometers > 1){
-						return kilometers.toFixed(2);
-					}
-					else {
-						return (kilometers*1000).toFixed();
-					}
-				}
-				$scope.getArrivalTime = function (train) {
-					return new moment(train.sch_arr_dt*1000).format('h:mm A');
-				}
-				$scope.tripDetails = function(train) {
-				    return trust(train.trip_name.split(' - ').slice(0,-1).join('<br>'));
-				}
-				$scope.getColor = function(trains) {
-				    return trains.route_name.split(' ')[0].toLowerCase();
-				}
-				function trust(html) {
-				    return $sce.trustAsHtml(html);
-				}
-				function showPosition(args) {
-				    $.post( "/api/next_trains", args, function( data ) {
-					  $scope.trains = data;
-					  $scope.updated = moment().format('h:mm A');
-					  $cookieStore.put('updated', $scope.updated);
-					  $cookieStore.put('trains', data);
-					  $scope.$apply();
-					});
-				}
-				function getStop(args) {
-				    $.post( "/api/nearby_stop", args, function( data ) {
-					  $scope.stop = data;
-					  $cookieStore.put('stop', data);
-					  $scope.$apply();
-					});
-				}
-				$scope.go();
-			});
-		</script>
+		<script src="/static/js/angularLocalStorage.js"></script>
+		<script src="/static/js/app.js"></script>
 	</head>
 	<body ng-controller='MBTACtrl' style='text-align: center;'>
 	    <div class="container">
@@ -108,7 +43,7 @@
 			</div>
 			<hr>
 			<h2>Nearest Stop</h2>
-			<div ng-show='stop.distance'>
+			<div ng-show='stop.stop_id'>
 				<p>
 					{{getName(stop)}}
 					<br>
@@ -125,30 +60,35 @@
 					<a type='button' target='_blank' href="http://maps.google.com/?q={{getName(stop)}}" class='btn btn-default'>Map!</a>
 				</p>
 			</div>
-			<div ng-show='!stop.distance'>
+			<div ng-show='!stop.stop_id'>
 				<p>No nearby T stops.</p>
 			</div>
 			<hr>
 			<h2>
 				Next
-				<ng-pluralize count='trains.trains.length' when="{'1': 'Train', 'other': 'Trains'}"></ng-pluralize>
+				<ng-pluralize count='trains.all_trains.length' when="{'1': 'Train', 'other': 'Trains'}"></ng-pluralize>
 			</h2>
-			<div ng-show='trains.trains'>
-				<h4>
-					{{trains.trains.length}} {{trains.route_name}}
-					<ng-pluralize count='trains.trains.length' when="{'1': 'Train', 'other': 'Trains'}"></ng-pluralize>
-				</h4>
-				<div ng-repeat='train in trains.trains' style='border-style: dotted; border-color: {{getColor(trains)}}'>
-					<p>
-						{{train.direction_name}}
-						<br>
-						{{getArrivalTime(train)}}
-						<br>
-						<small ng-bind-html="tripDetails(train)"></small>
-					</p>
+			<div ng-show='trains.all_trains'>
+				<div ng-repeat='trains in trains.all_trains' style='margin: 15px 0;'>
+					<h4>
+						{{trains.trains.length}} {{trains.route_name}}
+						<ng-pluralize count='trains.trains.length' when="{'1': 'Train', 'other': 'Trains'}"></ng-pluralize>
+					</h4>
+					<h5>
+						{{trains.headsign}}
+					</h5>
+					<div ng-repeat='train in trains.trains' style='border-style: dotted; border-color: {{getColor(trains)}}; margin: 10px 0;'>
+						<p>
+							{{train.direction_name}}
+							<br>
+							{{getArrivalTime(train)}}
+							<br>
+							<small ng-bind-html="tripDetails(train)"></small>
+						</p>
+					</div>
 				</div>
 			</div>
-			<div ng-show='!trains.trains'>
+			<div ng-show='!trains.all_trains'>
 				<p>No upcoming trains.</p>
 			</div>
 			<hr>

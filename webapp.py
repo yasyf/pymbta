@@ -19,7 +19,7 @@ def next_trains():
 
 	next_trains = client.next_trains((lat, lon), _datetime=dt, direction=direction, line=line)
 	if next_trains:
-		return jsonify(next_trains)
+		return jsonify({'all_trains': next_trains})
 	else:
 		return jsonify({'route_name': 'Nothing!'})
 
