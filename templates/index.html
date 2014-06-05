@@ -12,9 +12,9 @@
 		<script>
 			var MBTAApp = angular.module('MBTAApp',['ngCookies']);
 			MBTAApp.controller('MBTACtrl', function ($scope, $cookieStore) {
-				$scope.trains = {};
+				$scope.trains = $cookieStore.get('trains') || {};
 				$scope.hidden = true;
-				$scope.stop = {};
+				$scope.stop = $cookieStore.get('stop') || {};
 
 				$scope.args = {};
 				$scope.args.offset = $cookieStore.get('offset') || 0;
@@ -51,12 +51,14 @@
 				function showPosition(args) {
 				    $.post( "/api/next_trains", args, function( data ) {
 					  $scope.trains = data;
+					  $cookieStore.put('trains', data);
 					  $scope.$apply();
 					});
 				}
 				function getStop(args) {
 				    $.post( "/api/nearby_stop", args, function( data ) {
 					  $scope.stop = data;
+					  $cookieStore.put('stop', data);
 					  $scope.$apply();
 					});
 				}
@@ -110,6 +112,9 @@
 					<a type='button' target='_blank' href="http://maps.google.com/?q={{getName(stop)}}" class='btn btn-default'>Map!</a>
 				</p>
 			</div>
+			<div ng-show='!stop.distance'>
+				<p>No nearby T stops.</p>
+			</div>
 			<hr>
 			<h2>Next Train</h2>
 			<div ng-show='trains.trains'>
@@ -124,6 +129,9 @@
 						{{getArrivalTime(train)}}
 					</p>
 				</div>
+			</div>
+			<div ng-show='!trains.trains'>
+				<p>No upcoming trains.</p>
 			</div>
 			<hr>
 	    </div><!-- /.container -->
