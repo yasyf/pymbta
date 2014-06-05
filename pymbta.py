@@ -68,6 +68,13 @@ class MBTAClient():
 			 self.cache[address] = latlon
 		return self.cache[address]
 
+	def get_earliest_train(self, trains):
+		earliest = trains[0]
+		for train in trains:
+			if int(train['sch_arr_dt']) < int(earliest['sch_arr_dt']):
+				earliest = train
+		return earliest
+
 	def validate_line(self, line, routes):
 		return line.lower() in self.get_lines_from_routes(routes)
 
@@ -151,10 +158,11 @@ class MBTAClient():
 
 	def nearby_schedule(self, loc, _datetime=None, direction=None, line=None):
 		stop = self.closest_stop(loc, direction=direction, _datetime=_datetime, line=line)
-		return self.schedule_by_stop(stop['stop_id'], _datetime=_datetime) if stop else None
+		return self.schedule_by_stop(stop.get('parent_station', stop['stop_id']), _datetime=_datetime) if stop else None
 
-	def next_route(self, loc, _datetime=None, direction=None, line=None):
+	def next_routes(self, loc, _datetime=None, direction=None, line=None):
 		schedule = self.nearby_schedule(loc, direction=direction, _datetime=_datetime, line=line)
+		valid_routes = []
 		if schedule:
 			routes = self.get_routes_from_mode(schedule['mode'], 'Subway')
 			for route in routes:
@@ -166,25 +174,25 @@ class MBTAClient():
 						continue
 				info = {'stop_id': schedule['stop_id'], 'stop_name': schedule['stop_name']}
 				info.update(route)
-				return info
+				valid_routes.append(info)
+		return valid_routes
 
 	def next_trains(self, loc, _datetime=None, direction=None, line=None):
-		route = self.next_route(loc, direction=direction, _datetime=_datetime, line=line)
-		if route:
-			info = {'stop_id': route['stop_id'], 'stop_name': route['stop_name'], 'route_id': route['route_id'], 'route_name': route['route_name']}
-			trains = []
-			for direction in route['direction']:
-				train = {'direction_id': direction['direction_id'], 'direction_name': direction['direction_name']}
-				train.update(direction['trip'][0])
-				trains.append(train)
-			info['trains'] = trains
-			return info
+		routes = self.next_routes(loc, direction=direction, _datetime=_datetime, line=line)
+		train_info = []
+		if routes:
+			for route in routes:
+				info = {'stop_id': route['stop_id'], 'stop_name': route['stop_name'], 'route_id': route['route_id'], 'route_name': route['route_name']}
+				trains = []
+				for direction in route['direction']:
+					train = {'direction_id': direction['direction_id'], 'direction_name': direction['direction_name']}
+					train.update(direction['trip'][0])
+					trains.append(train)
+				info['trains'] = trains
+				train_info.append(info)
+		return train_info
 
 	def next_train(self, loc, _datetime=None, direction=None, line=None):
-		trains = self.next_trains(loc, direction=direction, _datetime=_datetime, line=line)
-		if trains:
-			earliest = trains['trains'][0]
-			for train in trains['trains']:
-				if int(train['sch_arr_dt']) < int(earliest['sch_arr_dt']):
-					earliest = train
-			return earliest
+		trains_list = self.next_trains(loc, direction=direction, _datetime=_datetime, line=line)
+		if trains_list:
+			return self.get_earliest_train([self.get_earliest_train(trains['trains']) for trains in trains_list])
