@@ -5,15 +5,17 @@
 	    <meta http-equiv="X-UA-Compatible" content="IE=edge">
 	    <meta name="viewport" content="width=device-width, initial-scale=1">
 		<script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+		<script src="//cdnjs.cloudflare.com/ajax/libs/moment.js/2.6.0/moment.min.js"></script>
 		<link href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css" rel="stylesheet">
 		<script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
 		<script src="//ajax.googleapis.com/ajax/libs/angularjs/1.3.0-beta.10/angular.min.js"></script>
 		<script src="//ajax.googleapis.com/ajax/libs/angularjs/1.3.0-beta.10/angular-cookies.min.js"></script>
 		<script>
 			var MBTAApp = angular.module('MBTAApp',['ngCookies']);
-			MBTAApp.controller('MBTACtrl', function ($scope, $cookieStore) {
+			MBTAApp.controller('MBTACtrl', function ($scope, $cookieStore, $sce) {
 				$scope.trains = $cookieStore.get('trains') || {};
 				$scope.hidden = true;
+				$scope.updated = $cookieStore.get('updated') || null;
 				$scope.stop = $cookieStore.get('stop') || {};
 
 				$scope.args = {};
@@ -46,11 +48,22 @@
 					}
 				}
 				$scope.getArrivalTime = function (train) {
-					return new Date(train.sch_arr_dt*1000).toLocaleString('en-us', {hour: 'numeric', minute: 'numeric'});
+					return new moment(train.sch_arr_dt*1000).format('h:mm A');
+				}
+				$scope.tripDetails = function(train) {
+				    return trust(train.trip_name.split(' - ').slice(0,-1).join('<br>'));
+				}
+				$scope.getColor = function(trains) {
+				    return trains.route_name.split(' ')[0].toLowerCase();
+				}
+				function trust(html) {
+				    return $sce.trustAsHtml(html);
 				}
 				function showPosition(args) {
 				    $.post( "/api/next_trains", args, function( data ) {
 					  $scope.trains = data;
+					  $scope.updated = moment().format('h:mm A');
+					  $cookieStore.put('updated', $scope.updated);
 					  $cookieStore.put('trains', data);
 					  $scope.$apply();
 					});
@@ -66,7 +79,7 @@
 			});
 		</script>
 	</head>
-	<body ng-controller='MBTACtrl'>
+	<body ng-controller='MBTACtrl' style='text-align: center;'>
 	    <div class="container">
 	    	<h1>Nearby T Info</h1>
 	    	<div>
@@ -116,17 +129,22 @@
 				<p>No nearby T stops.</p>
 			</div>
 			<hr>
-			<h2>Next Train</h2>
+			<h2>
+				Next
+				<ng-pluralize count='trains.trains.length' when="{'1': 'Train', 'other': 'Trains'}"></ng-pluralize>
+			</h2>
 			<div ng-show='trains.trains'>
-				<p>
+				<h4>
 					{{trains.trains.length}} {{trains.route_name}}
 					<ng-pluralize count='trains.trains.length' when="{'1': 'Train', 'other': 'Trains'}"></ng-pluralize>
-				</p>
-				<div ng-repeat='train in trains.trains'>
+				</h4>
+				<div ng-repeat='train in trains.trains' style='border-style: dotted; border-color: {{getColor(trains)}}'>
 					<p>
 						{{train.direction_name}}
 						<br>
 						{{getArrivalTime(train)}}
+						<br>
+						<small ng-bind-html="tripDetails(train)"></small>
 					</p>
 				</div>
 			</div>
@@ -134,6 +152,9 @@
 				<p>No upcoming trains.</p>
 			</div>
 			<hr>
+			<footer>
+				<p ng-show='updated'>Last updated at {{updated}}</p>
+			</footer>
 	    </div><!-- /.container -->
 	</body>
 </html>
