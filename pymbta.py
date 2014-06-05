@@ -31,11 +31,10 @@ class MBTAClient():
 		query_params.update(kwargs)
 		query_params = ['{}={}'.format(key, value) for key,value in query_params.items() if value]
 		url = "{}/{}?{}".format(self.endpoint, service, '&'.join(query_params))
-		data = requests.get(url, headers=self.default_headers()).json()
 		if '_datetime' in kwargs:
-			return data
+			return requests.get(url, headers=self.default_headers()).json()
 		if url not in self.cache:
-			self.cache[url] = data
+			self.cache[url] = requests.get(url, headers=self.default_headers()).json()
 		return self.cache[url]
 
 	def get_types_from_routes(self, routes):
