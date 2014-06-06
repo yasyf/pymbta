@@ -31,7 +31,7 @@ class MBTAClient():
 		query_params.update(kwargs)
 		query_params = ['{}={}'.format(key, value) for key,value in query_params.items() if value]
 		url = "{}/{}?{}".format(self.endpoint, service, '&'.join(query_params))
-		if '_datetime' in kwargs:
+		if '_datetime' in kwargs or service == 'servertime':
 			return requests.get(url, headers=self.default_headers()).json()
 		if url not in self.cache:
 			self.cache[url] = requests.get(url, headers=self.default_headers()).json()
