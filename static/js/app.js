@@ -10,6 +10,8 @@ MBTAApp.controller('MBTACtrl', function ($scope, $sce, storage) {
 	storage.bind($scope,'args.direction');
 	storage.bind($scope,'args.line');
 
+	storage.bind($scope,'offset', {defaultValue: 0});
+
 	$scope.go = function () {
 		navigator.geolocation.getCurrentPosition(function (position) {
 			args = {lat: position.coords.latitude, lon: position.coords.longitude};
@@ -32,7 +34,7 @@ MBTAApp.controller('MBTACtrl', function ($scope, $sce, storage) {
 		}
 	}
 	$scope.getArrivalTime = function (train) {
-		return new moment(train.sch_arr_dt*1000).format('h:mm A');
+		return new moment(train.sch_arr_dt*1000 + $scope.offset).format('h:mm A');
 	}
 	$scope.tripDetails = function(train) {
 		details = train.trip_name.split(' - ');
@@ -57,6 +59,7 @@ MBTAApp.controller('MBTACtrl', function ($scope, $sce, storage) {
 	function getStop(args) {
 	    $.post( "/api/nearby_stop", args, function( data ) {
 		  $scope.stop = data;
+		  $scope.offset = Date.now() - data.server_dt*1000;
 		  $scope.$apply();
 		});
 	}

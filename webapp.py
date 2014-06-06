@@ -33,9 +33,12 @@ def nearby_stops():
 	
 	nearest_stop = client.closest_stop((lat, lon), _datetime=dt, direction=direction, line=line)
 	if nearest_stop:
+		nearest_stop.update(client.server_time())
 		return jsonify(nearest_stop)
 	else:
-		return jsonify({'route_name': 'Nothing!'})
+		error = {'route_name': 'Nothing!'}
+		error.update(client.server_time())
+		return jsonify(error)
 
 if __name__ == '__main__':
 	if os.environ.get('PORT'):
